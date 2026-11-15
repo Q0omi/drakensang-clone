@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kroniky Popola</title>
+<style>
+:root{
+  --gold:#c9a45c; --gold-hi:#f1dc9c; --gold-lo:#5d4520; --ink:#0c0a09; --panel:#16120f; --panel2:#211a14;
+  --text:#e9dfc8; --muted:#9c8f76; --red:#c8281e; --serif:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#050404;color:var(--text);font-family:var(--serif);user-select:none;-webkit-user-select:none}
+canvas#game{position:fixed;inset:0;width:100%;height:100%;display:block}
+.hidden{display:none!important}
+button{font-family:inherit;cursor:pointer}
+
+#fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .45s ease;z-index:40}
+#fade.on{opacity:1}
+#vignette{position:fixed;inset:0;pointer-events:none;z-index:5;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55) 100%)}
+#hurt{position:fixed;inset:0;pointer-events:none;z-index:6;opacity:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(190,20,10,.55) 100%)}
+
+/* ---------- shared ornate panel ---------- */
+.panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--gold-lo);
+  box-shadow:0 0 0 1px #000,inset 0 0 0 1px rgba(201,164,92,.25),inset 0 0 40px rgba(0,0,0,.6),0 10px 40px rgba(0,0,0,.6);border-radius:4px}
+.title{font-variant:small-caps;letter-spacing:.14em;color:var(--gold-hi);text-shadow:0 2px 0 #000,0 0 18px rgba(201,164,92,.35)}
+.btn{padding:12px 30px;font-size:17px;font-variant:small-caps;letter-spacing:.12em;color:#fff3d6;border:1px solid var(--gold);border-radius:3px;
+  background:linear-gradient(180deg,#7a2a1c,#3d120c);box-shadow:inset 0 1px 0 rgba(255,220,160,.35),0 0 0 1px #000,0 6px 18px rgba(0,0,0,.6);transition:filter .15s,transform .1s}
+.btn:hover{filter:brightness(1.25)} .btn:active{transform:translateY(1px)}
+.btn.alt{background:linear-gradient(180deg,#3a3126,#1b1611)}
+.btn[disabled]{filter:grayscale(.8) brightness(.6);cursor:default}
+
+/* ---------- character select ---------- */
+#select{position:fixed;inset:0;z-index:30;display:grid;grid-template-columns:minmax(280px,330px) 1fr minmax(260px,300px);grid-template-rows:auto 1fr auto;gap:18px;padding:28px 34px;
+  background:radial-gradient(ellipse at 50% 60%,transparent 20%,rgba(4,3,3,.82) 78%)}
+#select h1{grid-column:1/4;margin:0;text-align:center;font-size:40px;font-weight:400}
+#select h1 small{display:block;font-size:14px;letter-spacing:.4em;color:var(--muted);margin-top:4px}
+#sel-info{grid-column:1;grid-row:2;align-self:center;padding:18px 20px}
+#sel-info p{font-size:14px}
+#sel-info h2{margin:0 0 2px;font-size:28px;font-weight:400}
+#sel-info .role{color:var(--gold);font-style:italic;margin-bottom:12px}
+#sel-info p{line-height:1.5;color:#d6cab0;margin:0 0 14px}
+#sel-abil{display:grid;gap:7px;margin:0;padding:0;list-style:none}
+#sel-abil li{display:grid;grid-template-columns:54px 1fr;gap:10px;align-items:start;font-size:14px;line-height:1.3}
+#sel-abil b{color:var(--gold-hi);font-weight:400}
+#sel-abil span.k{justify-self:start;font:12px/1 Consolas,monospace;padding:4px 6px;border:1px solid var(--gold-lo);border-radius:3px;background:#0b0908;color:var(--gold)}
+#sel-abil em{display:block;color:var(--muted);font-style:normal;font-size:12.5px}
+#sel-list{grid-column:3;grid-row:2;align-self:center;display:grid;gap:12px}
+.hero-card{display:grid;grid-template-columns:64px 1fr;gap:14px;align-items:center;padding:12px 14px;cursor:pointer;transition:transform .12s,filter .12s,box-shadow .12s}
+.hero-card:hover{filter:brightness(1.2);transform:translateX(-3px)}
+.hero-card.sel{box-shadow:0 0 0 1px #000,inset 0 0 0 1px var(--gold),0 0 26px rgba(201,164,92,.45)}
+.hero-card .sig{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--gold-lo);box-shadow:inset 0 0 14px #000}
+.hero-card .sig svg{width:36px;height:36px}
+.hero-card h3{margin:0;font-size:20px;font-weight:400;color:var(--gold-hi)}
+.hero-card div div{color:var(--muted);font-size:13.5px}
+#sel-foot{grid-column:1/4;grid-row:3;display:flex;justify-content:space-between;align-items:center}
+#sel-status{color:var(--muted);font-size:14px;min-height:20px;max-width:55vw}
+#sel-btns{display:flex;gap:12px}
+#select{pointer-events:none} #select > *{pointer-events:auto} #select h1{pointer-events:none}
+#lobby-labels{position:fixed;inset:0;pointer-events:none;z-index:29}
+.lobbylbl{position:absolute;left:0;top:0;padding:4px 12px 5px;text-align:center;white-space:nowrap;pointer-events:auto;cursor:pointer;border-radius:3px;
+  background:rgba(10,8,6,.62);border:1px solid rgba(201,164,92,.35);transition:border-color .2s,box-shadow .2s;will-change:transform}
+.lobbylbl b{display:block;font-weight:400;font-size:17px;color:var(--c);text-shadow:0 1px 3px #000} .lobbylbl span{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.lobbylbl.sel{border-color:var(--c);box-shadow:0 0 18px color-mix(in srgb,var(--c) 45%,transparent)}
+/* ---------- settings ---------- */
+#settings{position:fixed;inset:0;z-index:45;display:grid;place-items:center;background:rgba(0,0,0,.55)}
+#settings .box{width:min(560px,92vw);max-height:88vh;overflow:auto;padding:0 0 16px}
+#settings header{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--gold-lo);background:rgba(0,0,0,.3)}
+#settings header span{font-size:22px} #settings header button{width:28px;height:28px;border-radius:50%;border:1px solid var(--gold-lo);background:#5a1810;color:#ffd9c0}
+#set-body{padding:4px 22px}
+#set-body h3{margin:14px 0 6px;font-weight:400;font-variant:small-caps;letter-spacing:.14em;color:var(--gold);font-size:15px;border-bottom:1px solid #2c2318;padding-bottom:4px}
+#set-body .row{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:6px 0;font-size:14.5px;color:#e2d6bc}
+#set-body input[type=range]{-webkit-appearance:none;appearance:none;width:200px;height:8px;border-radius:5px;background:linear-gradient(90deg,#c9a45c var(--f),#1a1410 var(--f));box-shadow:inset 0 1px 3px #000,0 0 0 1px #4a3a22;outline:none}
+#set-body input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff1c2,#9a6e2c);border:1px solid #000;cursor:pointer}
+#set-body b{font:600 12px Consolas,monospace;color:var(--gold-hi);min-width:44px;text-align:right}
+#set-body .tog{grid-column:2/4;min-width:96px;padding:5px 12px;font-size:13px;border:1px solid #4a3a22;border-radius:3px;background:#1a1410;color:var(--muted)}
+#set-body .tog.on{background:linear-gradient(180deg,#5a7a2c,#2c4a14);color:#f2ffd8;border-color:#8aaa4c}
+#set-body .seg{grid-column:2/4;display:flex;border:1px solid #4a3a22;border-radius:3px;overflow:hidden}
+#set-body .seg button{padding:5px 12px;font-size:13px;border:0;background:#1a1410;color:var(--muted)} #set-body .seg button.on{background:linear-gradient(180deg,#7a5c2c,#4a3414);color:#fff1c2}
+#set-ingame{display:flex;gap:10px;justify-content:center;padding:14px 18px 0;flex-wrap:wrap}
+/* ---------- travel (teleport stone) ---------- */
+#travel{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:rgba(0,0,0,.45)}
+#travel .box{width:min(520px,92vw);padding:0 0 18px}
+#travel header{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--gold-lo);background:rgba(0,0,0,.3)}
+#travel header span{font-size:22px} #travel header button{width:28px;height:28px;border-radius:50%;border:1px solid var(--gold-lo);background:#5a1810;color:#ffd9c0}
+#tr-tierrow{display:flex;align-items:center;justify-content:center;gap:14px;padding:14px 18px 4px;font-size:16px}
+#tr-tierrow button{width:34px;height:34px;border-radius:50%;border:1px solid var(--gold-lo);background:#1a1410;color:var(--gold-hi);font-size:16px}
+#tr-tierrow button[disabled]{opacity:.35} #tr-tierrow b{font-size:26px;color:var(--gold-hi);font-weight:400;min-width:30px;text-align:center}
+#tr-desc{text-align:center;color:var(--muted);font-size:13px;padding:0 24px 10px;min-height:20px} #tr-desc b{color:#ffb070;font-weight:400}
+#tr-list{display:grid;gap:10px;padding:6px 22px 0}
+#tr-list button{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;text-align:left;padding:12px 16px;border:1px solid #4a3a22;border-radius:4px;color:#e9dfc8;
+  background:linear-gradient(90deg,rgba(40,30,20,.95),rgba(16,12,9,.95));transition:filter .15s,border-color .15s}
+#tr-list button:hover{filter:brightness(1.3);border-color:var(--gold)}
+#tr-list button i{grid-row:1/3;width:44px;height:44px;border-radius:50%;box-shadow:0 0 0 2px #000,0 0 0 3px #7a5c2c}
+#tr-list button b{font-weight:400;font-size:18px;color:var(--gold-hi)} #tr-list button small{color:var(--muted);font-size:12.5px}
+#prompt{position:absolute;left:50%;bottom:calc(40px + 210px * var(--hs,1));transform:translateX(-50%);padding:8px 16px;font-size:15px;cursor:pointer;pointer-events:auto}
+#prompt kbd{font:12px/1 Consolas,monospace;padding:3px 7px;border:1px solid var(--gold);border-radius:3px;background:#0b0908;color:var(--gold-hi);margin-right:6px}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;z-index:10;pointer-events:none}
+#hud .pe{pointer-events:auto}
+#bar{position:absolute;left:50%;bottom:16px;transform:translateX(-50%) scale(var(--hs,1));transform-origin:50% 100%;display:flex;align-items:flex-end;filter:drop-shadow(0 10px 18px rgba(0,0,0,.8))}
+/* ---- orbs in ornate claw frames ---- */
+.orbwrap{position:relative;width:196px;height:196px;flex:none;z-index:3}
+.orbwrap.hp{margin-right:-44px} .orbwrap.mp{margin-left:-44px}
+.orbwrap svg.frame{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.orbwrap.mp svg.frame{transform:scaleX(-1)}
+.orb{position:absolute;left:41px;top:39px;width:114px;height:114px;border-radius:50%;background:radial-gradient(circle at 50% 40%,#160c0a,#030202 70%);overflow:hidden;box-shadow:inset 0 0 22px #000}
+.orb .fill{position:absolute;left:0;right:0;bottom:0;height:100%;transition:height .2s ease-out}
+.orb .fill svg{position:absolute;left:0;top:-9px;width:200%;height:12px;animation:wave 2.6s linear infinite}
+.orb .fill svg.w2{animation-duration:3.7s;animation-direction:reverse;opacity:.55;top:-7px}
+@keyframes wave{to{transform:translateX(-50%)}}
+.orb.hp .fill{background:radial-gradient(ellipse at 50% 115%,#ff8a5a 0%,#e0281a 32%,#8a0b06 68%,#3a0302 100%)}
+.orb.mp .fill{background:radial-gradient(ellipse at 50% 115%,var(--res-hi) 0%,var(--res) 34%,var(--res-lo) 80%,#020208 100%)}
+.orb.hp .fill svg path{fill:#ff6a48} .orb.mp .fill svg path{fill:var(--res-hi)}
+.orb .bub{position:absolute;bottom:-6px;width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.45);animation:bub 3.4s linear infinite}
+@keyframes bub{0%{transform:translateY(0);opacity:0}15%{opacity:.8}100%{transform:translateY(-90px);opacity:0}}
+.orb .gloss{position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  background:radial-gradient(ellipse 46% 30% at 38% 24%,rgba(255,255,255,.55),rgba(255,255,255,.08) 60%,transparent 72%),radial-gradient(circle at 50% 50%,transparent 55%,rgba(0,0,0,.6) 100%)}
+.orb .shine{position:absolute;right:18%;bottom:14%;width:18%;height:9%;border-radius:50%;background:rgba(255,255,255,.18);filter:blur(1px);transform:rotate(-35deg)}
+.orbval{position:absolute;left:0;right:0;top:86px;text-align:center;font:600 15px/1 "Trebuchet MS",Verdana,sans-serif;color:#fff;text-shadow:0 1px 3px #000,0 0 8px #000;z-index:2}
+.orblbl{position:absolute;left:0;right:0;top:108px;text-align:center;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,240,220,.75);text-shadow:0 1px 2px #000;z-index:2}
+.orbwrap.low .orb{animation:lowhp .9s ease-in-out infinite}
+@keyframes lowhp{50%{box-shadow:inset 0 0 22px #000,0 0 26px 6px rgba(255,40,20,.55)}}
+/* ---- central bronze panel ---- */
+#mid{position:relative;width:880px;height:124px;flex:none;z-index:2;margin-bottom:6px}
+#mid > svg.panel{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+#xp{position:absolute;left:96px;right:96px;top:20px;height:12px;border-radius:7px;background:#060504;box-shadow:inset 0 1px 4px #000,0 0 0 1px #4a3a22,0 0 0 2px #000;overflow:hidden}
+#xp i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(180deg,#b6ff7a,#4fb82a 45%,#21600f);box-shadow:0 0 10px rgba(140,255,90,.5);transition:width .35s}
+#xp s{position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 9.9%,rgba(0,0,0,.55) 9.9% 10%)}
+#xp b{position:absolute;inset:0;display:grid;place-items:center;font:600 10px/1 "Trebuchet MS",Verdana,sans-serif;letter-spacing:.06em;color:#f6ffe8;text-shadow:0 1px 2px #000;font-weight:400}
+#lvl{position:absolute;left:52px;top:13px;width:38px;height:26px;display:grid;place-items:center;font:700 15px/1 Georgia,serif;color:#ffe9a8;text-shadow:0 1px 2px #000}
+#lvl-r{position:absolute;right:50px;top:16px;font:600 10.5px/1 "Trebuchet MS",sans-serif;color:#d9c79c;text-shadow:0 1px 2px #000}
+#potions,#slots{display:flex;gap:6px;align-items:center}
+#slotrow{position:absolute;left:62px;right:62px;top:44px;display:flex;justify-content:center;align-items:center;gap:7px}
+#slotrow .sep{width:14px;height:58px;margin:0 4px;background:radial-gradient(circle at 50% 50%,#c9a45c 0 3px,transparent 4px),linear-gradient(90deg,transparent 6px,#5d4520 6px 8px,transparent 8px)}
+/* ---- skill slots ---- */
+.slot{position:relative;width:60px;height:60px;border-radius:6px;background:#0a0807;overflow:hidden;
+  box-shadow:0 0 0 1px #000,0 0 0 3px #7a5c2c,0 0 0 4px #2a1d0e,inset 0 0 0 1px rgba(255,230,170,.25),0 4px 10px rgba(0,0,0,.7)}
+.slot::after{content:"";position:absolute;inset:0;border-radius:6px;pointer-events:none;box-shadow:inset 0 2px 0 rgba(255,240,200,.25),inset 0 -3px 6px rgba(0,0,0,.6),inset 0 0 14px rgba(0,0,0,.55)}
+.slot .ic{position:absolute;inset:0;display:grid;place-items:center}
+.slot .ic svg{width:100%;height:100%}
+.slot.small{width:46px;height:46px}
+.slot .cnt{position:absolute;right:3px;bottom:2px;font:700 12px/1 "Trebuchet MS",sans-serif;color:#fff;text-shadow:0 0 3px #000,0 1px 0 #000;z-index:2}
+.slot .cd{position:absolute;inset:0;background:conic-gradient(rgba(0,0,0,0) calc(var(--p,0)*1turn),rgba(4,3,6,.8) 0);pointer-events:none;z-index:1}
+.slot .cdt{position:absolute;inset:0;display:grid;place-items:center;font:700 20px/1 "Trebuchet MS",sans-serif;color:#fff;text-shadow:0 0 6px #000,0 1px 0 #000;z-index:2}
+.slot .key{position:absolute;left:3px;top:3px;font:700 9.5px/1 "Trebuchet MS",sans-serif;color:#ffe9a8;background:rgba(0,0,0,.72);padding:2px 4px;border-radius:3px;z-index:2;letter-spacing:.03em}
+.slot.nomana .ic{filter:grayscale(.85) brightness(.45) sepia(.4) hue-rotate(190deg)}
+.slot.ready{animation:rdy .5s ease-out}
+.slot.deny{animation:deny .25s}
+.slot.active::before{content:"";position:absolute;inset:0;z-index:2;border-radius:6px;box-shadow:inset 0 0 0 2px #ffe9a8,inset 0 0 16px rgba(255,220,140,.7);pointer-events:none}
+.slot .lock{position:absolute;inset:0;z-index:3;display:none;place-items:center;background:rgba(5,4,3,.72);backdrop-filter:grayscale(1)}
+.slot .lock svg{width:24px;height:24px;margin-top:-10px;filter:drop-shadow(0 1px 2px #000)}
+.slot .lock b{position:absolute;bottom:5px;left:0;right:0;text-align:center;font:700 11px/1 "Trebuchet MS",sans-serif;color:#e9d39c;text-shadow:0 1px 2px #000}
+.slot .lock b::before{content:"úr. "}
+.slot.locked .lock{display:grid} .slot.locked .ic{filter:grayscale(1) brightness(.4)} .slot.locked .cdt{display:none}
+.slot.unlocked{animation:unl 1.6s ease-out} @keyframes unl{0%{filter:brightness(3) drop-shadow(0 0 18px #ffe9a8);transform:scale(1.25)}100%{filter:none;transform:none}}
+#abtip em.lk{display:block;margin-top:6px;color:#ffb070;font-style:normal}
+#sel-abil small.ul{font:600 10.5px/1 "Trebuchet MS",sans-serif;color:#d9a85c;border:1px solid #5d4520;border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:2px}
+/* ---- purse, coins, keys ---- */
+.purse{display:flex;align-items:center;gap:12px;font:600 13px/1 "Trebuchet MS",sans-serif;color:#f3e6c4;white-space:nowrap}
+.purse .pc,.purse .pk{display:flex;align-items:center;gap:4px} .purse b{font-weight:700}
+#purse-hud{padding:0 12px;display:flex;align-items:center}
+#inv .purse{padding:8px 16px 2px;justify-content:space-between}
+i.coin{display:inline-block;width:12px;height:12px;border-radius:50%;margin:0 2px 0 1px;vertical-align:-1px;box-shadow:inset 0 -2px 0 rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.6),0 0 0 1px rgba(0,0,0,.6)}
+i.coin.z{background:radial-gradient(circle at 35% 30%,#fff6b0,#f0c030 45%,#9a6a10)} i.coin.s{background:radial-gradient(circle at 35% 30%,#fff,#c8d4de 45%,#6a7684)} i.coin.m{background:radial-gradient(circle at 35% 30%,#ffd0a0,#c8743a 45%,#6a3410)}
+svg.kico{width:18px;height:18px;vertical-align:-4px}
+.lootlbl.key{color:#ffd34a}
+.dmg.coinm{color:#ffb070;font-size:15px} .dmg.coins{color:#e8f0f8;font-size:16px} .dmg.coinz{color:#ffd34a;font-size:19px}
+@keyframes rdy{0%{filter:brightness(2.4)}100%{filter:none}}
+@keyframes deny{0%,100%{transform:none}30%{transform:translateX(-3px)}70%{transform:translateX(3px)}}
+/* ---- buffs ---- */
+#buffs{position:absolute;left:50%;bottom:calc(16px + 168px * var(--hs,1));transform:translateX(-50%);display:flex;gap:6px}
+.buff{position:relative;width:34px;height:34px;border-radius:4px;overflow:hidden;box-shadow:0 0 0 1px #000,0 0 0 2px #7a5c2c,0 0 10px rgba(255,210,120,.35)}
+.buff svg{width:100%;height:100%} .buff b{position:absolute;left:0;right:0;bottom:1px;text-align:center;font:700 10px/1 "Trebuchet MS",sans-serif;color:#fff;text-shadow:0 0 3px #000}
+#abtip{position:absolute;left:50%;bottom:calc(30px + 200px * var(--hs,1));transform:translateX(-50%);padding:10px 14px;max-width:340px;font-size:13.5px;line-height:1.35;display:none}
+#abtip b{color:var(--gold-hi);font-weight:400;font-size:16px} #abtip i{color:var(--muted);font-style:normal;font-size:12px;display:block;margin:2px 0 5px}
+
+#topleft{position:absolute;left:14px;top:12px;padding:8px 16px 9px 78px;min-width:250px;min-height:62px}
+#portrait{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:58px;height:58px;border-radius:50%;overflow:hidden;box-shadow:0 0 0 2px #000,0 0 0 4px #9a7a3c,0 0 0 5px #000,0 0 14px rgba(0,0,0,.8)}
+#portrait svg{width:100%;height:100%}
+#topleft .n{font-size:18px;color:var(--gold-hi)} #topleft .z{font-size:13px;color:var(--muted)}
+#topright{position:absolute;right:14px;top:12px;display:flex;gap:8px;align-items:stretch}
+#objective{padding:9px 14px;font-size:14px;text-align:right} #objective b{color:var(--gold-hi);font-weight:400}
+.ibtn{width:44px;display:grid;place-items:center;color:var(--gold-hi);font-size:13px}
+.ibtn:hover{filter:brightness(1.3)}
+#help{position:absolute;left:14px;top:90px;padding:10px 14px;font-size:12.5px;line-height:1.55;color:#cfc3a8;max-width:300px}
+#help kbd{font:11px/1 Consolas,monospace;padding:2px 5px;border:1px solid var(--gold-lo);border-radius:3px;background:#0b0908;color:var(--gold)}
+#fps{position:absolute;right:14px;bottom:10px;font:11px Consolas,monospace;color:#8a7f6a;text-shadow:0 1px 2px #000}
+
+#boss{position:absolute;left:50%;top:14px;transform:translateX(-50%);width:min(620px,56vw);text-align:center}
+#boss .nm{font-size:21px;margin-bottom:5px}
+#boss .bar{height:20px;border:1px solid var(--gold-lo);background:#0a0606;box-shadow:0 0 0 1px #000,inset 0 0 10px #000,0 4px 18px rgba(0,0,0,.7);border-radius:2px;position:relative;overflow:hidden}
+#boss .bar i{position:absolute;left:0;top:0;bottom:0;width:100%;background:linear-gradient(180deg,#ff7a3a,#c2210c 55%,#6b0d04);transition:width .2s}
+#boss .bar u{position:absolute;left:0;top:0;bottom:0;width:100%;background:#ffd9a0;opacity:.55;transition:width .7s .15s}
+#boss .bar s{position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 24.6%,rgba(0,0,0,.55) 24.6% 25%)}
+
+#banner{position:absolute;left:0;right:0;top:19%;text-align:center;opacity:0;pointer-events:none}
+#banner.show{animation:ban 3.6s ease forwards}
+#banner .t{font-size:58px;font-weight:400} #banner .s{font-size:17px;letter-spacing:.42em;text-transform:uppercase;color:#d8c9a6;text-shadow:0 2px 4px #000}
+#banner .l{width:min(460px,60vw);height:1px;margin:8px auto;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+@keyframes ban{0%{opacity:0;transform:translateY(14px) scale(.97)}14%{opacity:1;transform:none}78%{opacity:1}100%{opacity:0;transform:translateY(-8px)}}
+#toast{position:absolute;left:50%;top:33%;transform:translateX(-50%);font-size:18px;color:var(--gold-hi);text-shadow:0 2px 4px #000,0 0 14px #000;opacity:0;transition:opacity .3s;white-space:nowrap}
+#toast.show{opacity:1}
+
+.dmg{position:absolute;left:0;top:0;font:700 19px/1 "Trebuchet MS",Verdana,sans-serif;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 3px 5px rgba(0,0,0,.7);white-space:nowrap;will-change:transform,opacity;pointer-events:none}
+.dmg.crit{font-size:31px;color:#ffe23a} .dmg.hurt{color:#ff5a48} .dmg.heal{color:#6dff7a} .dmg.info{color:#9fd8ff;font-size:15px}
+.lootlbl{position:absolute;left:0;top:0;padding:2px 8px;font-size:13px;white-space:nowrap;background:rgba(6,5,4,.78);border:1px solid currentColor;border-radius:2px;text-shadow:0 1px 2px #000;will-change:transform;pointer-events:none}
+
+/* ---------- inventory ---------- */
+#inv{position:absolute;right:14px;top:74px;width:372px;padding:0 0 12px}
+#inv header{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--gold-lo);background:rgba(0,0,0,.3)}
+#inv header span{font-size:19px} #inv header button{width:26px;height:26px;border-radius:50%;border:1px solid var(--gold-lo);background:#5a1810;color:#ffd9c0}
+#equip{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:14px 22px 8px;justify-items:center}
+#equip figure{margin:0;text-align:center;font-size:11.5px;color:var(--muted);letter-spacing:.08em}
+#stats{margin:4px 14px 10px;padding:9px 12px;font-size:13px;display:grid;grid-template-columns:1fr auto 1fr auto;gap:3px 10px;background:rgba(0,0,0,.35);border:1px solid #2c2318;border-radius:3px}
+#stats b{color:var(--gold-hi);font-weight:400;text-align:right}
+#bag{display:grid;grid-template-columns:repeat(7,44px);gap:5px;justify-content:center;padding:0 14px}
+.cell{width:44px;height:44px;border-radius:3px;background:#0a0807;border:1px solid #33291c;box-shadow:inset 0 0 9px #000;display:grid;place-items:center;position:relative}
+.cell.big{width:56px;height:56px;margin-bottom:4px}
+.cell.has{cursor:pointer;border-color:var(--rc);box-shadow:inset 0 0 12px color-mix(in srgb,var(--rc) 55%,transparent),0 0 7px color-mix(in srgb,var(--rc) 55%,transparent)}
+.cell.has:hover{filter:brightness(1.35)}
+.cell svg{width:78%;height:78%;filter:drop-shadow(0 0 4px var(--rc))}
+#inv .hint{padding:9px 16px 0;font-size:12px;color:var(--muted);line-height:1.45}
+/* ---- shop ---- */
+#shop{position:fixed;inset:0;z-index:38;display:grid;place-items:center;background:rgba(0,0,0,.45)}
+#shop .box{width:min(860px,96vw);padding:0 0 14px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto auto;column-gap:18px}
+#shop header{grid-column:1/3;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--gold-lo);background:rgba(0,0,0,.3)}
+#shop header .title{font-size:22px} #shop header small{color:var(--muted);font-size:13px;margin-left:10px}
+#shop header button{width:28px;height:28px;border-radius:50%;border:1px solid var(--gold-lo);background:#5a1810;color:#ffd9c0;cursor:pointer}
+#shop h5{margin:12px 0 7px;font:400 15px/1 Georgia,serif;color:var(--gold-hi);letter-spacing:.04em;display:flex;justify-content:space-between;align-items:center}
+#shop .col{padding:0 16px}
+#shop-stock{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+#shop-stock .cell{width:auto;height:64px;padding-bottom:14px}
+#shop-stock .cell svg{width:46%;height:70%}
+#shop-stock .pr{position:absolute;left:0;right:0;bottom:3px;text-align:center;font:600 11px/1 "Trebuchet MS",sans-serif;color:#f3e6c4;text-shadow:0 1px 2px #000}
+#shop-stock .cell.sold{opacity:.35}
+#shop-goods{display:flex;gap:8px;margin-top:8px}
+#shop-goods .cell{width:50px;height:50px} #shop-goods .gi{position:absolute;inset:3px;border-radius:2px;overflow:hidden} #shop-goods .gi svg{width:100%;height:100%;filter:none}
+#shop-goods .cnt{position:absolute;right:2px;bottom:1px;font:700 11px/1 "Trebuchet MS",sans-serif;color:#fff;text-shadow:0 0 3px #000;z-index:2}
+#shop-bag{display:grid;grid-template-columns:repeat(7,44px);gap:5px}
+#shop .cell.sel{outline:2px solid #ffe9a8;outline-offset:1px}
+#shop-sel{grid-column:1/3;margin:14px 16px 0;padding:10px 12px;min-height:58px;border:1px solid var(--gold-lo);background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:13.5px}
+#shop-sel .st{color:#cfe6c4;font-size:12.5px;margin-top:3px;line-height:1.35} #shop-sel .muted{color:var(--muted)}
+#shop .btn{flex:none;padding:9px 16px;font:400 15px/1 Georgia,serif;color:#1c1206;background:linear-gradient(180deg,#ffe9a8,#c9a45c 60%,#8a6a2c);border:1px solid #2a1d0e;border-radius:3px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.6)}
+#shop .btn.sell{background:linear-gradient(180deg,#d8f0a8,#7aa84a 60%,#3a5a1c)} #shop .btn:disabled{filter:grayscale(1) brightness(.6);cursor:not-allowed}
+#shop .btn.small{padding:5px 9px;font-size:12.5px}
+#shop .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+#shop .purse{justify-content:flex-end;font-size:14px}
+.npclbl{position:absolute;left:0;top:0;text-align:center;white-space:nowrap;pointer-events:none;text-shadow:0 1px 3px #000,0 0 8px #000;will-change:transform}
+.npclbl b{display:block;font:400 17px/1.1 Georgia,serif;color:#ffd98a} .npclbl small{font-size:12px;color:#d9c79c}
+#boss.mini{width:min(460px,44vw)} #boss.mini .nm{font-size:17px} #boss.mini .bar{height:14px} #boss.mini .bar i{background:linear-gradient(180deg,#ffb84a,#c26a0c 55%,#6b3404)}
+#prompt .pk{display:inline-flex;align-items:center;gap:3px;margin-left:8px;color:#ffd34a}
+#tip{position:fixed;z-index:50;min-width:210px;max-width:280px;padding:10px 13px;font-size:13.5px;pointer-events:none;display:none}
+#tip h4{margin:0;font-size:16px;font-weight:400} #tip .r{font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:7px}
+#tip div.st{color:#cfe3ff} #tip div.cmp{margin-top:7px;padding-top:6px;border-top:1px solid #33291c;color:var(--muted);font-size:12px}
+#tip .up{color:#6dff7a} #tip .dn{color:#ff6a58}
+
+/* ---------- end screens ---------- */
+#end{position:fixed;inset:0;z-index:35;display:grid;place-items:center;background:radial-gradient(ellipse at center,rgba(0,0,0,.35),rgba(0,0,0,.9))}
+#end .box{text-align:center;padding:34px 54px 30px}
+#end h1{margin:0;font-size:60px;font-weight:400} #end.dead h1{color:#e0503e;text-shadow:0 2px 0 #000,0 0 30px rgba(200,40,30,.6)}
+#end p{color:#d6cab0;margin:8px 0 24px;font-size:17px} #end .row{display:flex;gap:14px;justify-content:center}
+#filewarn{position:fixed;inset:0;z-index:99;display:none;place-items:center;background:#0b0908;padding:30px;text-align:center}
+#filewarn div{max-width:640px;padding:28px 34px;line-height:1.6} #filewarn code{color:var(--gold-hi)}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="gGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1c2"/><stop offset=".25" stop-color="#e2bb6a"/><stop offset=".55" stop-color="#9a6e2c"/><stop offset=".8" stop-color="#5a3a14"/><stop offset="1" stop-color="#c79a50"/></linearGradient>
+    <linearGradient id="gGoldH" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6dd9a"/><stop offset=".5" stop-color="#8a6024"/><stop offset="1" stop-color="#d8b062"/></linearGradient>
+    <linearGradient id="gLeather" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2c1e"/><stop offset=".5" stop-color="#1e1610"/><stop offset="1" stop-color="#0e0a07"/></linearGradient>
+    <radialGradient id="gGem" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#ffd0b0"/><stop offset=".35" stop-color="#e0301a"/><stop offset="1" stop-color="#3a0402"/></radialGradient>
+    <filter id="fNoise"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .35 0"/><feComposite in2="SourceGraphic" operator="in"/></filter>
+    <g id="orbframe">
+      <!-- claws / wings behind the ring (outer side) -->
+      <g fill="url(#gGoldH)" stroke="#1a1006" stroke-width="1.5">
+        <path d="M44 150 C10 140 2 104 12 74 C16 98 28 116 46 124 Z"/>
+        <path d="M40 120 C8 100 10 62 30 38 C28 64 36 86 54 98 Z"/>
+        <path d="M56 70 C40 40 58 14 86 6 C72 26 70 44 80 58 Z"/>
+        <path d="M60 178 C38 190 18 186 6 172 C26 174 42 166 54 152 Z"/>
+      </g>
+      <!-- pedestal -->
+      <path d="M52 168 Q98 206 146 168 L156 184 Q98 220 42 184 Z" fill="url(#gGold)" stroke="#1a1006" stroke-width="1.5"/>
+      <!-- ring -->
+      <circle cx="98" cy="96" r="64" fill="none" stroke="#000" stroke-width="17"/>
+      <circle cx="98" cy="96" r="64" fill="none" stroke="url(#gGold)" stroke-width="13"/>
+      <circle cx="98" cy="96" r="70.5" fill="none" stroke="#2a1a08" stroke-width="1.5"/>
+      <circle cx="98" cy="96" r="57.5" fill="none" stroke="#1a1006" stroke-width="2"/>
+      <circle cx="98" cy="96" r="64" fill="none" stroke="#fff3cc" stroke-opacity=".35" stroke-width="1" stroke-dasharray="2 9"/>
+      <g fill="url(#gGem)" stroke="#2a1608" stroke-width="1.2">
+        <circle cx="98" cy="31" r="6"/><circle cx="33" cy="96" r="5"/><circle cx="163" cy="96" r="5"/><circle cx="98" cy="161" r="5"/>
+      </g>
+      <path d="M86 24 L98 6 L110 24 Z" fill="url(#gGold)" stroke="#1a1006" stroke-width="1.2"/>
+    </g>
+    <g id="midframe">
+      <path d="M30 34 Q350 14 670 34 L690 118 L10 118 Z" fill="url(#gLeather)" stroke="#000" stroke-width="2"/>
+      <path d="M30 34 Q350 14 670 34 L690 118 L10 118 Z" fill="#000" opacity=".5" filter="url(#fNoise)"/>
+      <path d="M22 36 Q350 12 678 36" fill="none" stroke="url(#gGold)" stroke-width="7"/>
+      <path d="M22 36 Q350 12 678 36" fill="none" stroke="#fff3cc" stroke-opacity=".35" stroke-width="1"/>
+      <path d="M10 118 L690 118" stroke="url(#gGold)" stroke-width="6"/>
+      <g fill="url(#gGold)" stroke="#1a1006" stroke-width="1.2">
+        <path d="M322 20 Q350 -6 378 20 Q364 14 350 30 Q336 14 322 20Z"/>
+        <path d="M30 34 Q0 30 -6 6 Q18 22 44 24Z"/><path d="M670 34 Q700 30 706 6 Q682 22 656 24Z"/>
+        <circle cx="70" cy="26" r="16"/><circle cx="630" cy="26" r="0"/>
+      </g>
+      <circle cx="350" cy="18" r="6" fill="url(#gGem)" stroke="#1a1006"/>
+      <circle cx="70" cy="26" r="12" fill="#1a1006"/>
+      <g stroke="#7a5c2c" stroke-width="1" fill="none" opacity=".7"><path d="M40 108 Q350 98 660 108"/></g>
+    </g>
+  </defs>
+</svg>
+<canvas id="game"></canvas>
+<div id="vignette"></div>
+<div id="hurt"></div>
+
+<!-- ============ Výber postavy ============ -->
+<div id="lobby-labels"></div>
+<div id="select">
+  <h1 class="title">Kroniky Popola<small>VYBER SI HRDINU · ÚTOČISKO DRAHEIM</small></h1>
+  <section id="sel-info" class="panel">
+    <h2 class="title" id="sel-name"></h2>
+    <div class="role" id="sel-role"></div>
+    <p id="sel-desc"></p>
+    <ul id="sel-abil"></ul>
+  </section>
+  <aside id="sel-list"></aside>
+  <footer id="sel-foot">
+    <div id="sel-status"></div>
+    <div id="sel-btns"><button class="btn alt" id="sel-settings">Nastavenia</button><button class="btn" id="sel-play">Vstúpiť do hry</button></div>
+  </footer>
+</div>
+
+<!-- ============ HUD ============ -->
+<div id="hud" class="hidden">
+  <div id="topleft" class="panel"><div id="portrait"></div><div class="n" id="hud-name"></div><div class="z" id="hud-zone"></div></div>
+  <div id="topright">
+    <div id="objective" class="panel"></div>
+    <div id="purse-hud" class="panel purse" title="Peniaze a kľúče od truhlíc"></div>
+    <button id="btn-set" class="panel ibtn pe" title="Nastavenia (Esc)">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
+    </button>
+    <button id="btn-inv" class="panel ibtn pe" title="Inventár (I)">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 8h12l1.5 12h-15z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+    </button>
+  </div>
+  <div id="boss" class="hidden"><div class="nm title">Ignarax, Ohnivý drak</div><div class="bar"><u></u><i></i><s></s></div></div>
+  <div id="banner"><div class="t title" id="ban-t"></div><div class="l"></div><div class="s" id="ban-s"></div></div>
+  <div id="toast"></div>
+  <div id="prompt" class="panel hidden"><kbd>F</kbd>Teleportný kameň</div>
+  <div id="labels"></div>
+  <div id="help" class="panel">
+    <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> pohyb &nbsp;·&nbsp; <kbd>ĽTM</kbd> na zem = choď tam<br>
+    <kbd>ĽTM</kbd> na nepriateľa / <kbd>Shift</kbd>+<kbd>ĽTM</kbd> = útok<br>
+    <kbd>PTM</kbd> <kbd>1</kbd>–<kbd>5</kbd> <kbd>Medzerník</kbd> schopnosti (odomykajú sa s úrovňou)<br>
+    <kbd>Q</kbd> <kbd>E</kbd> elixíry &nbsp;·&nbsp; koliesko myši = zoom<br>
+    <kbd>I</kbd> inventár &nbsp;·&nbsp; <kbd>F</kbd> truhlica / obchod / teleport &nbsp;·&nbsp; <kbd>Esc</kbd> nastavenia &nbsp;·&nbsp; <kbd>H</kbd> skryť pomoc
+  </div>
+  <div id="fps"></div>
+  <div id="abtip" class="panel"></div>
+  <div id="buffs"></div>
+  <div id="bar">
+    <div class="orbwrap hp" id="orb-hp"><div class="orb hp"><div class="fill" id="hp-fill"><svg viewBox="0 0 200 12" preserveAspectRatio="none"><path d="M0 6 Q25 0 50 6 T100 6 T150 6 T200 6 V12 H0Z"/></svg><svg class="w2" viewBox="0 0 200 12" preserveAspectRatio="none"><path d="M0 6 Q25 12 50 6 T100 6 T150 6 T200 6 V12 H0Z"/></svg></div><div class="shine"></div><div class="gloss"></div></div><svg class="frame"><use href="#orbframe"/></svg><div class="orbval" id="hp-val"></div><div class="orblbl">Život</div></div>
+    <div id="mid">
+      <svg class="panel" viewBox="0 0 700 124" preserveAspectRatio="none"><use href="#midframe"/></svg>
+      <div id="lvl">1</div><div id="xp"><i id="xp-fill"></i><s></s><b id="xp-txt"></b></div><div id="lvl-r"></div>
+      <div id="slotrow" class="pe"><div id="potions"></div><div class="sep"></div><div id="slots"></div></div>
+    </div>
+    <div class="orbwrap mp" id="orb-mp"><div class="orb mp"><div class="fill" id="mp-fill"><svg viewBox="0 0 200 12" preserveAspectRatio="none"><path d="M0 6 Q25 0 50 6 T100 6 T150 6 T200 6 V12 H0Z"/></svg><svg class="w2" viewBox="0 0 200 12" preserveAspectRatio="none"><path d="M0 6 Q25 12 50 6 T100 6 T150 6 T200 6 V12 H0Z"/></svg></div><div class="shine"></div><div class="gloss"></div></div><svg class="frame"><use href="#orbframe"/></svg><div class="orbval" id="mp-val"></div><div class="orblbl" id="mp-lbl">Mana</div></div>
+  </div>
+  <div id="inv" class="panel pe hidden">
+    <header><span class="title">Inventár</span><button id="inv-close">✕</button></header>
+    <div class="purse"></div>
+    <div id="equip"></div>
+    <div id="stats"></div>
+    <div id="bag"></div>
+    <div class="hint">Klik = nasadiť / zložiť &nbsp;·&nbsp; Pravý klik = zahodiť<br>Predmety zbieraš prejdením cez ne.</div>
+  </div>
+</div>
+<div id="shop" class="hidden">
+  <div class="box panel pe">
+    <header><div><span class="title">Obchod – Hwei</span><small>dvojklik = kúpiť / predať</small></div><button id="shop-close">✕</button></header>
+    <div class="col">
+      <h5>Tovar <button id="shop-restock" class="btn small">Nový tovar</button></h5>
+      <div id="shop-stock"></div>
+      <div id="shop-goods"></div>
+    </div>
+    <div class="col">
+      <h5>Tvoje predmety <span class="purse"></span></h5>
+      <div id="shop-bag"></div>
+      <div class="row"><button id="shop-sell0" class="btn small sell">Predať všetky obyčajné</button><button id="shop-sell1" class="btn small sell">Predať obyčajné + vylepšené</button></div>
+    </div>
+    <div id="shop-sel"></div>
+  </div>
+</div>
+<div id="tip" class="panel"></div>
+
+<!-- ============ Koniec hry / víťazstvo ============ -->
+<div id="end" class="hidden">
+  <div class="box panel">
+    <h1 class="title" id="end-title"></h1>
+    <p id="end-text"></p>
+    <div class="row">
+      <button class="btn" id="end-retry"></button>
+      <button class="btn alt" id="end-town">Oživiť v meste</button>
+      <button class="btn alt" id="end-switch">Zmeniť postavu</button>
+    </div>
+  </div>
+</div>
+
+<div id="settings" class="hidden">
+  <div class="box panel">
+    <header><span class="title">Nastavenia</span><button id="set-close">✕</button></header>
+    <div id="set-body"></div>
+    <div id="set-ingame" class="hidden">
+      <button class="btn" id="set-resume">Pokračovať</button>
+      <button class="btn alt" id="set-town">Návrat do mesta</button>
+      <button class="btn alt" id="set-lobby">Zmeniť postavu</button>
+    </div>
+  </div>
+</div>
+<div id="travel" class="hidden">
+  <div class="box panel">
+    <header><span class="title">Teleportný kameň</span><button id="tr-close">✕</button></header>
+    <div id="tr-tierrow"><button id="tr-prev">◀</button><span>Úroveň výpravy</span><b id="tr-tier">1</b><span style="color:var(--muted)">/ <span id="tr-max">1</span></span><button id="tr-next">▶</button></div>
+    <div id="tr-desc"></div>
+    <div id="tr-list">
+      <button data-z="0"><i style="background:radial-gradient(circle at 40% 35%,#8fd070,#1f4a1a 70%)"></i><b>Divočina</b><small>Temný hvozd · vlci, goblini, temní lukostrelci</small></button>
+      <button data-z="1"><i style="background:radial-gradient(circle at 40% 35%,#d0a070,#3a2414 70%)"></i><b>Dungeon</b><small>Zabudnutá krypta · kostlivci a kultisti tieňov</small></button>
+      <button data-z="2"><i style="background:radial-gradient(circle at 40% 35%,#ff8a40,#4a0e04 70%)"></i><b>Boss Room</b><small>Dračia svätyňa · Ignarax, Ohnivý drak</small></button>
+    </div>
+  </div>
+</div>
+<div id="fade"></div>
+<div id="filewarn"><div class="panel">
+  <h2 class="title">Hru treba spustiť cez lokálny server</h2>
+  <p>Prehliadač nedovolí načítať moduly a <code>.glb</code> modely priamo zo súboru (<code>file://</code>).<br>
+  Spusti <code>spustit.bat</code> v tomto priečinku, alebo v ňom zadaj<br><code>python -m http.server 8080</code> a otvor <code>http://localhost:8080</code>.</p>
+</div></div>
+<script>if (location.protocol === 'file:') document.getElementById('filewarn').style.display = 'grid';</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>

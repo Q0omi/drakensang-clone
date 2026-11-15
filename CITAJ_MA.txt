@@ -1,0 +1,33 @@
+KRONIKY POPOLA – izometrické ARPG (Three.js)
+=============================================
+Spustenie: dvojklik na spustit.bat, otvorí sa http://localhost:8765 . Po aktualizácii hry stlač v prehliadači Ctrl+F5.
+
+Ovládanie
+  WASD / ĽTM na zem ... pohyb            ĽTM na nepriateľa / Shift+ĽTM ... útok
+  PTM, 1–5, Medzerník . schopnosti (odomykajú sa s úrovňou)
+  Q / E ............... elixír života / sily
+  F ................... otvoriť truhlicu / obchod / teleportný kameň v meste
+  I / Tab ............. inventár        Esc ... nastavenia      H ... pomoc      G ... kvalita grafiky
+
+Odomykanie schopností:  ĽTM úr.1 · PTM úr.2 · [1] úr.4 · [2] úr.8 · Medzerník úr.12 · [3] úr.21 · [4] úr.26 · [5] úr.32
+
+Mapy:  Mesto (obchodník Hwei, teleportný kameň) → Divočina → Dungeon → Dračia svätyňa (boss Ignarax, ohnivý drak)
+  Divočina má 3 voliteľné odbočky (rázcestníky):
+    Vlčí brloh ........... mini-boss Šedohrivý (skok, zvoláva svorku)
+    Krugov lom ........... mini-boss Gromm, kamenný kráľ (zemetrasenie, línia skál)
+    Zarastená svätyňa .... mini-boss Fiddlesticks (búrka vrán, strach, temný vietor)
+  Truhlice sa otvárajú kľúčom – kľúče padajú z príšer (z mini-bossov vždy), dajú sa kúpiť aj u obchodníka.
+
+Peniaze: 100 medi = 1 striebro, 100 striebra = 1 zlato. Čím silnejšia príšera, tým väčší drop – ale každá časť má vlastnú šancu.
+Rarity predmetov: biela, zelená, modrá, fialová, oranžová (legendárny, vzácny), žltá (unikátny, veľmi vzácny).
+
+Súbory
+  game.js, index.html ........ hra
+  aurora.glb, battle_queen_gwen.glb, sherwood_forest_ashe.glb ... hrdinovia
+  obchodnik npc.glb .......... obchodník v meste
+  monsters\ .................. príšery; fire_drake.glb + drakling.glb majú útoky animované v Blendri (monsters\blend\*.blend)
+  maps\*.glb ................. mapy a truhlica postavené v Blendri; maps\blend\*.blend zdroje; maps\blender\postav_*.py skripty
+  ost\ ....................... hudba (Mesto/výber, Divočina, Dungeon, Boss)
+
+Prestavba mapy v Blendri: Scripting → otvor maps\blender\postav_wild.py (alebo town / chest / crypt / sanctum) → Run Script.
+Animácie draka: maps\blender\animuj_draka.py.
